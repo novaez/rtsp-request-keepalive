@@ -1,0 +1,171 @@
+#!/usr/bin/perl
+#
+# rtsp-request-keepalive: Command Line RTSP Tool 0.1
+# Base on rtsp-request on http://www.kosho.org/tools/rtsp-request/
+#
+
+$|=0;
+my $VERSION=0.1;
+
+use File::Basename;
+use Cwd 'abs_path';
+use lib dirname(abs_path($0)) . '/perl-lib';
+
+#use Data::Dumper;
+use Getopt::Std;
+use RTSP::Lite::Keepalive;
+use AnyEvent;
+
+my $rtsp = new RTSP::Lite::Keepalive;
+
+# Read schedule from files
+my @requests;
+
+#if (!@ARGV) {
+#    print "Usage: $0 [FILE]...\n";
+#    exit(1);
+#}
+
+while (<>) {
+    chomp;
+    if (!/^#/) {
+        my @r = split /,\s+/;
+        push(@requests, \@r);
+    }
+}
+
+# Listen handler runs only after the process becomes idle.
+my $w = AnyEvent->idle(
+        cb => sub {
+            $rtsp->listen(0);
+        }   
+     );  
+
+# Send requests as schedule.
+my %resp_headers;
+foreach my $r (@requests) {
+    my ($after, $interval, $max, $args) = @$r;
+    my $cv = AnyEvent->condvar;
+    my $count = 0;
+    my $t = AnyEvent->timer(
+        after => $after,
+        interval => $interval,
+        cb => sub {
+            $count++;
+            my $headers = request($args);
+            # Record response headers for sending requests 
+            # depending on value from response before.
+            # This hash will not be cleared for each response.
+            foreach my $h (@$headers) {
+                my ($header, $param) = $h =~ /^([^:]+):(.*)/;
+                $resp_headers{upper($header)} = $param;
+            }
+            # * means that is a infinite loop.
+            if ($max ne '*' && $count >= $max) {
+                $cv->send;
+            }
+        }
+    );
+    $cv->recv;
+}
+
+$rtsp->close();
+exit(0);
+sub request {
+    @ARGV = split /\s+/, shift;
+    getopts('cbdphvm:');
+    $url = $ARGV[0];
+    if ($opt_h) {
+        print STDERR "Command Line RTSP tool $VERSION\n";
+        print STDERR "Usage: rtsp-request [OPTION]... -m method-name URL [optional-request-header]...\n";
+        print STDERR "  -m method-name (OPTIONS, DESCRIBE, SETUP, PLAY, ...)\n";
+        print STDERR "  -c display response code and message\n";
+        print STDERR "  -b display received response body\n";
+        print STDERR "  -p display received response headers\n";
+        print STDERR "  -v display separators\n";
+        print STDERR "  -d display network read and write (debug)\n";
+        print STDERR "  -h display help\n";
+        print STDERR "  optional-request-header, cf. \"User-Agent=rtsp-request\"\n";
+        print STDERR "  return-code, 0: response code is 200, -1: others\n";
+        exit (0);
+    }
+    
+    ($protocol,$host,$junk,$port,$object) =
+        $url =~ /^([^:\/]+):\/\/([^\/:]*)(:(\d+))?(\/.*)$/;
+    
+    #print "$_\n" for $url, $protocol, $host, $junk, $port, $object;
+    
+    if (!defined($port)) {
+      $port = 554;
+    }
+    
+    if ($protocol ne "rtsp") {
+      print STDERR "This tool only supports rtsp \n";
+      exit (-1);
+    }
+    
+    if ($opt_d) {
+      $rtsp->debug(1);
+    }
+    
+    if (!($req = $rtsp->open($host,$port))) {
+      print "Unable to open: $!\n";
+      exit (0);
+    }
+    
+    $rtsp->method($opt_m);
+    $rtsp->user_agent("rtsp-request:$VERSION");
+    
+    shift @ARGV;
+    
+    while ($header_string = shift @ARGV) {
+      ($header, $param) = $header_string =~ /^([^=]+)=(.*)/;
+      # A trick of retrieving value from responses before.
+      if ($param eq '') {
+        $param = $resp_headers{upper($header)};
+      }
+      $rtsp->add_req_header($header,$param);
+    }
+    
+    
+    $rtsp->request($url);
+    
+    if ($opt_c) {
+        if ($opt_v) {
+         print "--- Status ---\n";
+        }
+        print $rtsp->status." ".$rtsp->status_message();
+    }
+    
+    my @headers;
+    if ($opt_p) {
+      @headers = $rtsp->headers_array();
+    
+      if ($opt_v) {
+          print "--- Received Headers ---\n";
+      }
+      foreach $header (@headers)
+      {
+        print "$header\n";
+      }
+    }
+    
+    if ($opt_b) {
+        if ($opt_v) {
+         print "--- Received Body ---\n";
+        }
+        print $rtsp->body();
+    }
+
+    return \@headers;
+}
+
+sub upper
+{
+    my ($str) = @_;
+    if (defined($str)) {
+	return uc($str);
+    } else {
+	return undef;
+    }
+}
