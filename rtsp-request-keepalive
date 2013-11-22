@@ -35,11 +35,12 @@ while (<>) {
 }
 
 # Listen handler runs only after the process becomes idle.
-my $w = AnyEvent->idle(
-        cb => sub {
-            $rtsp->listen(0);
-        }   
-     );  
+#my $w = AnyEvent->idle(
+#    cb => sub {
+#        $rtsp->listen(0);
+#        sleep(100); 
+#   }   
+#);  
 
 # Send requests as schedule.
 my %resp_headers;
@@ -52,6 +53,11 @@ foreach my $r (@requests) {
         interval => $interval,
         cb => sub {
             $count++;
+            # Read the content in socket buffer, which is 
+            # sent there beteen two requests, e.g. ANNOUNCE messages
+            $rtsp->listen(0);
+
+            # Send request and record value of response headers
             my $headers = request($args);
             # Record response headers for sending requests 
             # depending on value from response before.
@@ -155,6 +161,10 @@ sub request {
          print "--- Received Body ---\n";
         }
         print $rtsp->body();
+    }
+
+    if ($rtsp->status ne "200") {
+        exit (-1);
     }
 
     return \@headers;

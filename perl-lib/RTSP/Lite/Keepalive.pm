@@ -298,129 +298,129 @@ sub listen
 
     while ($data = $self->rtsp_read(*FH, $headmode, $chunkmode, $chunksize, $timeout))
     {
-	if ($self->{DEBUG}>1) {
-	    $self->DEBUG("reading: $chunkmode, $chunksize, ".
-			 "$chunklength, $headmode, ".length($self->{'body'}));
-	    foreach my $var ("body", "request", "content", "status",
-			     "error-message","resp-headers",
-			     "CBARGS", "RTSPReadBuffer") 
-	    {
-		$self->DEBUG("state $var ".length($self->{$var}));
+	    if ($self->{DEBUG}>1) {
+	        $self->DEBUG("reading: $chunkmode, $chunksize, ".
+	    		 "$chunklength, $headmode, ".length($self->{'body'}));
+	        foreach my $var ("body", "request", "content", "status",
+	    		     "error-message","resp-headers",
+	    		     "CBARGS", "RTSPReadBuffer") 
+	        {
+	    	$self->DEBUG("state $var ".length($self->{$var}));
+	        }
 	    }
-	}
-	$line++;
+	    $line++;
 
-	# Response Line;
-	if ($line == 1) {
-	    my ($proto,$status,$message) = split(' ', $$data, 3);
-	    ($self->{DEBUG}>1) && $self->DEBUG("header $$data");
-	    $self->{status}=$status;
-	    $self->{'error-message'}=$message;
-	    next;
-	} 
+	    # Response Line;
+	    if ($line == 1) {
+	        my ($proto,$status,$message) = split(' ', $$data, 3);
+	        ($self->{DEBUG}>1) && $self->DEBUG("header $$data");
+	        $self->{status}=$status;
+	        $self->{'error-message'}=$message;
+	        next;
+	    } 
 
-	# after a blank line, its a body
-	if (($headmode || $chunkmode eq "entity-header") &&
-	    $$data =~ /^[\r\n]*$/) {
-	    if ($chunkmode)  {
-		$chunkmode = 0;
-	    }
-	    $headmode = 0;
-      
-	    #oops, [0] is not good
-	    # in case of no body, Content-Length is not sent by server;
-			
-	    my $cl = $self->get_header('Content-Length');
-	    if (defined($cl)) {
-		$chunksize = @$cl[0];
-		if ($chunksize>0) {
-		    $chunkmode = "chunk";
-		}
-	    } else {
-            return 0;
-	    }
+	    # after a blank line, its a body
+	    if (($headmode || $chunkmode eq "entity-header") &&
+	        $$data =~ /^[\r\n]*$/) {
+	        if ($chunkmode)  {
+	    	$chunkmode = 0;
+	        }
+	        $headmode = 0;
+          
+	        #oops, [0] is not good
+	        # in case of no body, Content-Length is not sent by server;
+	    		
+	        my $cl = $self->get_header('Content-Length');
+	        if (defined($cl)) {
+	    	$chunksize = @$cl[0];
+	    	if ($chunksize>0) {
+	    	    $chunkmode = "chunk";
+	    	}
+	        } else {
+                return 0;
+	        }
 
-#      # Check for Transfer-Encoding (RTSP does not define it. Comment out)
+#          # Check for Transfer-Encoding (RTSP does not define it. Comment out)
 #
-#      my $te = $self->get_header("Transfer-Encoding");
-#      if (defined($te)) {
-#        my $header = join(' ',@{$te});
-#        if ($header =~ /chunked/i)
-#        {
-#          $chunkmode = "chunksize";
-#        }
-#      }
-	    next;
-	}
-
-	# Parse the entity-header
-
-	if ($headmode || $chunkmode eq "entity-header") {
-	    my ($var,$datastr) = $$data =~ /^([^:]*):\s*(.*)$/;
-	    if (defined($var)) {
-		$datastr =~s/[\r\n]$//g;
-		$var = lc($var);
-		$var =~ s/^(.)/&upper($1)/ge;
-		$var =~ s/(-.)/&upper($1)/ge;
-		my $hr = ${$self->{'resp-headers'}}{$var};
-	    if (!ref($hr)) {
-		$hr = [ $datastr ];
-	    } else {
-		push @{ $hr }, $datastr;
+#          my $te = $self->get_header("Transfer-Encoding");
+#          if (defined($te)) {
+#            my $header = join(' ',@{$te});
+#            if ($header =~ /chunked/i)
+#            {
+#              $chunkmode = "chunksize";
+#            }
+#          }
+	        next;
 	    }
-	    ${$self->{'resp-headers'}}{$var} = $hr;
+
+	    # Parse the entity-header
+
+	    if ($headmode || $chunkmode eq "entity-header") {
+	        my ($var,$datastr) = $$data =~ /^([^:]*):\s*(.*)$/;
+	        if (defined($var)) {
+	    	$datastr =~s/[\r\n]$//g;
+	    	$var = lc($var);
+	    	$var =~ s/^(.)/&upper($1)/ge;
+	    	$var =~ s/(-.)/&upper($1)/ge;
+	    	my $hr = ${$self->{'resp-headers'}}{$var};
+	        if (!ref($hr)) {
+	    	$hr = [ $datastr ];
+	        } else {
+	    	push @{ $hr }, $datastr;
+	        }
+	        ${$self->{'resp-headers'}}{$var} = $hr;
+            }
+        } elsif ($chunkmode) {
+	        if ($chunkmode eq "chunksize")	{
+	            $chunksize = $$data;
+	            $chunksize =~ s/^\s*|;.*$//g;
+	            $chunksize =~ s/\s*$//g;
+	            my $cshx = $chunksize;
+	            if (length($chunksize) > 0) {
+	        	# read another line
+	        	if ($chunksize !~ /^[a-f0-9]+$/i) {
+	        	    ($self->{DEBUG}>1) &&
+	        		$self->DEBUG("chunksize not a hex string");
+	        	}
+	        	$chunksize = hex($chunksize);
+	        	($self->{DEBUG}>1) &&
+	        	    $self->DEBUG("chunksize was $chunksize (HEX was $cshx)");
+	        	if ($chunksize == 0)
+	        	{
+	        	    $chunkmode = "entity-header";
+	        	} else {
+	        	    $chunkmode = "chunk";
+	        	    $chunklength = 0;
+	        	}
+	            } else {
+	        	($self->{DEBUG}>1) &&
+	        	    $self->DEBUG("chunksize empty string, checking next line!");
+	            }
+	        } elsif ($chunkmode eq "chunk") {
+	            $chunk .= $$data;
+	            $chunklength += length($$data);
+	            if ($chunklength >= $chunksize) {
+	        	$chunkmode = "chunksize";
+	        	if ($chunklength > $chunksize) {
+	        	    $chunk = substr($chunk,0,$chunksize);
+	        	} elsif ($chunklength == $chunksize && $chunk !~ /$CRLF$/) {
+	        	    # chunk data is exactly chunksize -- need CRLF still
+	        	    $chunkmode = "ignorecrlf";
+	        	}
+	        	$self->add_to_body(\$chunk, $data_callback);
+	        	$chunk="";
+	        	$chunklength = 0;
+	        	$chunksize = "";
+	            }
+                return 0;
+
+	        } elsif ($chunkmode eq "ignorecrlf") {
+	            $chunkmode = "chunksize";
+	        }
+        } else {
+	        $self->add_to_body($data, $data_callback);
         }
-    } elsif ($chunkmode) {
-	if ($chunkmode eq "chunksize")	{
-	    $chunksize = $$data;
-	    $chunksize =~ s/^\s*|;.*$//g;
-	    $chunksize =~ s/\s*$//g;
-	    my $cshx = $chunksize;
-	    if (length($chunksize) > 0) {
-		# read another line
-		if ($chunksize !~ /^[a-f0-9]+$/i) {
-		    ($self->{DEBUG}>1) &&
-			$self->DEBUG("chunksize not a hex string");
-		}
-		$chunksize = hex($chunksize);
-		($self->{DEBUG}>1) &&
-		    $self->DEBUG("chunksize was $chunksize (HEX was $cshx)");
-		if ($chunksize == 0)
-		{
-		    $chunkmode = "entity-header";
-		} else {
-		    $chunkmode = "chunk";
-		    $chunklength = 0;
-		}
-	    } else {
-		($self->{DEBUG}>1) &&
-		    $self->DEBUG("chunksize empty string, checking next line!");
-	    }
-	} elsif ($chunkmode eq "chunk") {
-	    $chunk .= $$data;
-	    $chunklength += length($$data);
-	    if ($chunklength >= $chunksize) {
-		$chunkmode = "chunksize";
-		if ($chunklength > $chunksize) {
-		    $chunk = substr($chunk,0,$chunksize);
-		} elsif ($chunklength == $chunksize && $chunk !~ /$CRLF$/) {
-		    # chunk data is exactly chunksize -- need CRLF still
-		    $chunkmode = "ignorecrlf";
-		}
-		$self->add_to_body(\$chunk, $data_callback);
-		$chunk="";
-		$chunklength = 0;
-		$chunksize = "";
-	    }
-        return 0;
-
-	} elsif ($chunkmode eq "ignorecrlf") {
-	    $chunkmode = "chunksize";
-	}
-    } else {
-	$self->add_to_body($data, $data_callback);
     }
-  }
     return 1;
 }
 
