@@ -55,7 +55,7 @@ foreach my $r (@requests) {
             $count++;
             # Read the content in socket buffer, which is 
             # sent there beteen two requests, e.g. ANNOUNCE messages
-            $rtsp->listen(0);
+            #$rtsp->listen(0);
 
             # Send request and record value of response headers
             my $headers = request($args);
