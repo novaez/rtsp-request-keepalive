@@ -28,7 +28,7 @@ echo
 
 
 echo
-echo "Not Maching bewteen TEARDOWNs and ANNOUCEs:"
+echo "Not Maching bewteen TEARDOWNs and ANNOUNCEs:"
 echo "-------------------------------------------"
 comm -3 <(grep -A 3 "TEARDOWN rtsp://" ${logfile} | grep OnDemandSessionId | uniq | awk '{print $2}' | sort) <(grep "Sending an ANNOUNCE on session" ${logfile} | awk '{print $11}' | uniq | cut -d"=" -f2 | sort)
 echo

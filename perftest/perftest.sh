@@ -3,26 +3,76 @@
 host=${1:-"10.85.2.230:5544"}
 pnum=${2:-"1"}
 killmetimeout=${3:-"7"}
-logdir=${4:-"log"}
+logdir=${4:-"log"}/"procs"
 msginterval=${5:-"40"} # 25 messages/second
 msgvariation=${6:-"4"}
 ptfile=${7}
 
+rtsprequest="../rtsp-request-keepalive"
 realptfile="pt.tmp"
 
-trap "rm ${realptfile}; killall; exit 1" INT KILL
-
-killall () {
+killall() {
     netstat -tpn 2>&1 | grep perl | grep ${host} | awk '{print $7}' | cut -d / -f 1| grep -v "-" | xargs kill &>/dev/null
 }
 
+showbar(){
+    barlength=$(($(tput cols) - 40))
+    percdone=$(echo "$1 * 100 / $2" | bc)
+    bardone=$(echo "$1 * ${barlength} / $2" | bc)
+    printf -v bar "%*s>" $((bardone - 1))
+    bar=${bar// /=}
+    printf -v bar "[%s%*s]" ${bar} $((barlength - ${#bar}))
+    pbcurrent=$(date +%s)
+    if (( pbcurrent == pbstart ))
+    then
+        nps=0
+        remain="?"
+    else
+        nps=$(echo "$1 / (${pbcurrent} - ${pbstart})" | bc)
+        remain=$(echo "($2 - $1) / ${nps}" | bc)
+    fi
+    printf -v bar "%3s%%${bar} $1/$2    ${nps}/s    ${remain}s" ${percdone}
+    printf -v margin "%*s\r" $(( $(tput cols) - $(echo "${bar}" | wc -c) - 1 ))
+    echo -ne "${bar}${margin}\r"
+}
+
+findself() {
+     # Am I a symlink?
+     if [ -L $0 ]; then # yes I am; find the real path
+         #echo "Linky"
+         MYDIR=$(readlink -e -n $0)
+     elif [ ${0:0:1} = '/' ]; then
+         #echo "Absolute path"
+         MYDIR="$0"
+     else
+         #echo "Relative path"
+         MYDIR="$PWD/$0"
+     fi
+
+     MYDIR=${MYDIR%\/*} # Takes complete path ($0) and removes the script name to leave the directory
+     MYDIR=${MYDIR%\/\.*} # Remove "\." from the path looks like "/aaa/bbb/ccc/."
+}
+
+abspath() {
+    if [ ! ${1:0:1} = '/' ]; then
+        echo "${MYDIR}/$1"
+    else
+        echo "$1"
+    fi
+}
+
+
+findself
+logdir=$(abspath ${logdir})
+rtsprequest=$(abspath ${rtsprequest})
+realptfile=$(abspath ${realptfile})
+ptfile=$(abspath ${ptfile})
+
+trap "if [ -e ${realptfile} ]; then rm ${realptfile}; fi; killall; exit 1" INT KILL
+
 if [ ${logdir} ]
 then
-    if [ -e ${logdir} ]
-    then
-        rm -rf ${logdir}
-    fi
-    mkdir ${logdir}
+    mkdir -p ${logdir}
 fi
 
 echo
@@ -51,17 +101,8 @@ else
     seq ${pnum} > ${realptfile}
 fi
 
-showbar(){
-    barlength=$(($(tput cols) - 25))
-    percdone=$(echo "$1 * 100 / $2" | bc)
-    bardone=$(echo "$1 * ${barlength} / $2" | bc)
-    printf -v bar "%*s>" $((bardone - 1))
-    bar=${bar// /=}
-    printf -v bar "[%s%*s]" ${bar} $((barlength - ${#bar}))
-    printf "%2s%%${bar} $1/$2\r" ${percdone}
-}
-
 i=0
+pbstart=$(date +%s)
 while read line
 do
     ((i++))
@@ -80,10 +121,10 @@ EOF
     then
         fileno=$(printf "%0*d\n" 6 $i);
         logpath="${logdir}/proc_${fileno}"
-        echo "$config" | ../rtsp-request-keepalive &>${logpath} &
+        echo "$config" | ${rtsprequest} &>${logpath} &
         #echo "$config" | ../rtsp-request-keepalive 2>&1 | tee ${logpath} &
     else
-        echo "$config" | ../rtsp-request-keepalive 2>&1 &
+        echo "$config" | ${rtsprequest} 2>&1 &
     fi
     #pid[i]=$!
     #trap "kill $(echo ${pid[@]:0}); exit 1" SIGINT
@@ -99,10 +140,10 @@ echo
 netstatus=$(netstat -tpn 2>&1 | grep ${host})
 echo 
 echo "TCP Connections"
+#echo "------------------------------------------------"
+#echo "${netstatus}"
 echo "------------------------------------------------"
-echo "${netstatus}"
-echo "------------------------------------------------"
-echo "All               : $(echo "${netstatus}" | grep -v "" | wc -l)"
+echo "All               : $(echo "${netstatus}" | wc -l)"
 echo "ESTABLISHED       : $(echo "${netstatus}" | grep "ESTABLISHED" | wc -l)"
 echo "TIME_WAIT         : $(echo "${netstatus}" | grep "TIME_WAIT" | wc -l)"
 echo "SYN_SENT          : $(echo "${netstatus}" | grep "SYN_SENT" | wc -l)"
