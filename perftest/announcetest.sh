@@ -42,7 +42,9 @@ run(){
     __log="${logdir}/${__caseno}-t${__threshold}-c${__cnumber}-a${__anumber}-s${__start}-e${__end}"
     echo "Announce Test Case: ${__log#*/}"
     echo $(getermrunpid) | xargs kill &>/dev/null
-    ./ermrun.sh ${srmip} ${__threshold} "random-announce {'startPoint':${__start},'endPoint':${__end},'executingNumber':${__anumber}}" ${__end} 1 ${__log} | tee ${__log} &
+    ./ermrun.sh ${srmip} ${__threshold} \
+        "random-announce {'startPoint':${__start},'endPoint':${__end},'executingNumber':${__anumber}}" \
+        ${__end} 1 ${__log} | tee ${__log} &
     trap "kill $(getermrunpid); exit 1;" INT KILL
     echo "Waiting for SRM to send GET_PARAMETER to ERM..."
     sleep 60

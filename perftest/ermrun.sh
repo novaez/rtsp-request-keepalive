@@ -2,7 +2,7 @@
 
 if (( $# < 4 ))
 then
-    echo "Usage: $0 srm_ip_address threshold random_announce test_interval [test_count] [erm_log_file] [client_ip_address]"
+    echo "Usage: $0 srm_ip_address threshold random_announce test_interval [test_count] [erm_log_file]"
     exit 1
 fi
 
@@ -12,7 +12,6 @@ randomannounce=$3
 cmdinterval=$4
 testcount=${5:-"0"}
 ermlogfile=${6:-"ermlog"}
-clientip=${7:-"10.85.2.229"}
 
 teardowntimeout=300
 
@@ -25,9 +24,7 @@ vsslogfile="vss.out"
 
 pipe="/tmp/testpipe"
 
-trap "service srm stop; \
-    rm -f ${pipe}; \
-    exit 1" INT KILL
+trap "rm -f ${pipe}; exit 1" INT KILL
 
 getpidwithport(){
     netstat -tpln | grep $1 | awk '{print $7}' | cut -d "/" -f1

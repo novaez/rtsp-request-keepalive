@@ -140,13 +140,8 @@ echo
 netstatus=$(netstat -tpn 2>&1 | grep ${host})
 echo 
 echo "TCP Connections"
-#echo "------------------------------------------------"
-#echo "${netstatus}"
 echo "------------------------------------------------"
-echo "All               : $(echo "${netstatus}" | wc -l)"
-echo "ESTABLISHED       : $(echo "${netstatus}" | grep "ESTABLISHED" | wc -l)"
-echo "TIME_WAIT         : $(echo "${netstatus}" | grep "TIME_WAIT" | wc -l)"
-echo "SYN_SENT          : $(echo "${netstatus}" | grep "SYN_SENT" | wc -l)"
+netstat -n | grep ${host} | awk '/^tcp/ {++S[$NF]} END {for(a in S) print a, S[a]}'
 echo
 
 
