@@ -93,7 +93,9 @@ sub DEBUG
 {
     my $self = shift;
     if ($self->{DEBUG}) {
-	print STDERR join(" ", @_),"\n";
+        my $now = scalar localtime;
+        unshift(@_, $now);
+	    print STDERR join(" ", @_),"\n";
     }
 }
 
@@ -188,6 +190,14 @@ sub open
 sub close
 {
     close FH;
+}
+
+sub response_ok
+{
+    my ($self) = @_;
+    $self->rtsp_write(*FH, "RTSP/1.0 200 OK$CRLF");
+    $self->{cseq}++;
+    $self->rtsp_write(*FH, "cseq: ".$self->{cseq}."$CRLF");
 }
 
 sub request
@@ -560,11 +570,15 @@ sub rtsp_write
 
     my $size = length($line);
 
-    $self->{DEBUG} && print STDERR ("write: $line");
+    $self->{DEBUG} && $self->DEBUG("write: ".substr($line, 0, -1));
 
     my $bytes = syswrite($fh, $line, $size, 0 );
+$self->{DEBUG} && $self->DEBUG("@@@ 0 size=$size, bytes=$bytes");
+my $count = 1;
     while ( ($size - $bytes) > 0) {
-	$bytes += syswrite($fh, $line, 4096, $bytes );
+	    $bytes += syswrite($fh, $line, 4096, $bytes );
+$self->{DEBUG} && $self->DEBUG("@@@ $count size=$size, bytes=$bytes");
+$count++;
     }
 }
  
