@@ -155,29 +155,36 @@ sub open
 
     my $addr = inet_aton($host);
     if (!$addr) {
-	close(FH);
-	return undef;
+        close(FH);
+        return undef;
     }
 
     # choose local port and address
     my $local_addr = INADDR_ANY; 
     my $local_port = "0";
     if (defined($self->{'local_addr'})) {
-	$local_addr = $self->{'local_addr'};
-	if ($local_addr eq "0.0.0.0" || $local_addr eq "0") {
-	    $local_addr = INADDR_ANY;
-	} else {
-	    $local_addr = inet_aton($local_addr);
-	}
+        $local_addr = $self->{'local_addr'};
+        if ($local_addr eq "0.0.0.0" || $local_addr eq "0") {
+            $local_addr = INADDR_ANY;
+        } else {
+            $local_addr = inet_aton($local_addr);
+        }
     }
     if (defined($self->{'local_port'})) {
-	$local_port = $self->{'local_port'};
+        $local_port = $self->{'local_port'};
     }
     my $paddr = pack_sockaddr_in($local_port, $local_addr); 
     bind(FH, $paddr) || return undef;  # Failing to bind is fatal.
 
     my $sin = sockaddr_in($port,$addr);
     connect(FH, $sin) || return undef;
+    
+    if ($self->{DEBUG}) {
+        my $local_sockaddr = getsockname(FH);
+        ($local_port, $local_addr) = unpack_sockaddr_in($local_sockaddr);
+        my $local_host = inet_ntoa($local_addr);
+        $self->DEBUG("Connection created: $local_host:$local_port => $host:$port");
+    }
 
     # Set nonblocking IO on the handle to allow timeouts
 
