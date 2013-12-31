@@ -130,7 +130,8 @@ EOF
     #trap "kill $(echo ${pid[@]:0}); exit 1" SIGINT
 
     # SRM is busy, let's send another SETUP message after a while.
-    interval=$(echo "$((msginterval + (RANDOM % msgvariation))) / 1000" | bc -l)
+    random=$((RANDOM % (msgvariation * 10)))
+    interval=$(echo "(${msginterval} + (${random} / 10)) / 1000" | bc -l)
     sleep ${interval}
 done <${realptfile} 
 rm ${realptfile}
