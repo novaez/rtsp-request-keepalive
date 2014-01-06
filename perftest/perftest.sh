@@ -101,16 +101,20 @@ else
     seq ${pnum} > ${realptfile}
 fi
 
-i=0
-pbstart=$(date +%s)
-while read line
-do
-    ((i++))
+createConnection() {
+    #((i++))
+    host=$1
+    pt=$2
+    logdir=$3
+    rtsprequest=$4
+    msgvariation=$5
+    msginterval=$6
 
-    #echo "Start process $i..."
-    showbar $i ${pnum}
+echo "pt=$pt"
+time0=$(date +"%s.%N")
+echo "$(date) Start process $i..."
+#    showbar $i ${pnum}
 
-    pt=${line}
     read -d '' config <<EOF
 # after, interval, count, args
 0, 0, 0, -d -p -b -m SETUP rtsp://${host}/;purchaseToken=${pt};serverID=localhost Require=com.comcast.ngod.s1 Transport=MP2T/DVBC/QAM;unicast;client=20001;qam_name=Gobelins-0.0 ClientSessionId=007
@@ -119,21 +123,70 @@ EOF
 
     if [ ${logdir} ]
     then
-        fileno=$(printf "%0*d\n" 6 $i);
+        fileno=$(printf "%0*d\n" 6 ${pt});
         logpath="${logdir}/proc_${fileno}"
         echo "$config" | ${rtsprequest} &>${logpath} &
         #echo "$config" | ../rtsp-request-keepalive 2>&1 | tee ${logpath} &
     else
         echo "$config" | ${rtsprequest} 2>&1 &
     fi
-    #pid[i]=$!
-    #trap "kill $(echo ${pid[@]:0}); exit 1" SIGINT
 
     # SRM is busy, let's send another SETUP message after a while.
     random=$((RANDOM % (msgvariation * 10)))
     interval=$(echo "(${msginterval} + (${random} / 10)) / 1000" | bc -l)
+time1=$(date +"%s.%N")
+echo "$(date) Sleeping for $interval..."
     sleep ${interval}
-done <${realptfile} 
+time2=$(date +"%s.%N")
+echo "$(date) Get up... $(echo "$time2 - $time1" | bc -l)"
+echo "$(date) Duration: $(echo "$time2 - $time0" | bc -l)"
+}
+
+export -f createConnection
+
+i=0
+pbstart=$(date +%s)
+
+cat ${realptfile} | parallel --gnu -j 8 "createConnection $host {} $logdir $rtsprequest $msgvariation $msginterval"
+
+#while read line
+#do
+#    createConnection ${line}    
+#    ((i++))
+#
+#time0=$(date +"%s.%N")
+#echo "$(date) Start process $i..."
+##    showbar $i ${pnum}
+#
+#    pt=${line}
+#    read -d '' config <<EOF
+## after, interval, count, args
+#0, 0, 0, -d -p -b -m SETUP rtsp://${host}/;purchaseToken=${pt};serverID=localhost Require=com.comcast.ngod.s1 Transport=MP2T/DVBC/QAM;unicast;client=20001;qam_name=Gobelins-0.0 ClientSessionId=007
+#5, 6, *, -d -p -b -m PING rtsp://${host}/ Require=com.comcast.ngod.s1 OnDemandSessionId= Session=
+#EOF
+#
+#    if [ ${logdir} ]
+#    then
+#        fileno=$(printf "%0*d\n" 6 $i);
+#        logpath="${logdir}/proc_${fileno}"
+#        echo "$config" | ${rtsprequest} &>${logpath} &
+#        #echo "$config" | ../rtsp-request-keepalive 2>&1 | tee ${logpath} &
+#    else
+#        echo "$config" | ${rtsprequest} 2>&1 &
+#    fi
+#    #pid[i]=$!
+#    #trap "kill $(echo ${pid[@]:0}); exit 1" SIGINT
+#
+#    # SRM is busy, let's send another SETUP message after a while.
+#    random=$((RANDOM % (msgvariation * 10)))
+#    interval=$(echo "(${msginterval} + (${random} / 10)) / 1000" | bc -l)
+#time1=$(date +"%s.%N")
+#echo "$(date) Sleeping for $interval..."
+#    sleep ${interval}
+#time2=$(date +"%s.%N")
+#echo "$(date) Get up... $(echo "$time2 - $time1" | bc -l)"
+#echo "Duration: $(echo "$time2 - $time0" | bc -l)"
+#done <${realptfile} 
 rm ${realptfile}
 echo
 
