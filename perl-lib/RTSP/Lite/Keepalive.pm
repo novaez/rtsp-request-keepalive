@@ -580,12 +580,8 @@ sub rtsp_write
     $self->{DEBUG} && $self->DEBUG("write: ".substr($line, 0, -1));
 
     my $bytes = syswrite($fh, $line, $size, 0 );
-$self->{DEBUG} && $self->DEBUG("@@@ 0 size=$size, bytes=$bytes");
-my $count = 1;
     while ( ($size - $bytes) > 0) {
 	    $bytes += syswrite($fh, $line, 4096, $bytes );
-$self->{DEBUG} && $self->DEBUG("@@@ $count size=$size, bytes=$bytes");
-$count++;
     }
 }
  
