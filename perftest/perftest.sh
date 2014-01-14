@@ -107,9 +107,9 @@ while read line
 do
     ((i++))
 
-time0=$(date +"%s.%N")
-echo "$(date) Start process $i..."
-#    showbar $i ${pnum}
+#time0=$(date +"%s.%N")
+#echo "$(date) Start process $i..."
+    showbar $i ${pnum}
 
     pt=${line}
     read -d '' config <<EOF
@@ -133,12 +133,12 @@ EOF
     # SRM is busy, let's send another SETUP message after a while.
     random=$((RANDOM % (msgvariation * 10)))
     interval=$(echo "(${msginterval} + (${random} / 10)) / 1000" | bc -l)
-time1=$(date +"%s.%N")
-echo "$(date) Sleeping for $interval..."
+#time1=$(date +"%s.%N")
+#echo "$(date) Sleeping for $interval..."
     sleep ${interval}
-time2=$(date +"%s.%N")
-echo "$(date) Get up... $(echo "$time2 - $time1" | bc -l)"
-echo "Duration: $(echo "$time2 - $time0" | bc -l)"
+#time2=$(date +"%s.%N")
+#echo "$(date) Get up... $(echo "$time2 - $time1" | bc -l)"
+#echo "Duration: $(echo "$time2 - $time0" | bc -l)"
 done <${realptfile} 
 rm ${realptfile}
 echo

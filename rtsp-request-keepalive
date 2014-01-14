@@ -15,6 +15,7 @@ use lib dirname(abs_path($0)) . '/perl-lib';
 use Getopt::Std;
 use RTSP::Lite::Keepalive;
 use AnyEvent;
+use Data::Dumper;
 
 my $rtsp = new RTSP::Lite::Keepalive;
 
@@ -55,7 +56,16 @@ foreach my $r (@requests) {
             $count++;
             # Read the content in socket buffer, which is 
             # sent there beteen two requests, e.g. ANNOUNCE messages
-            #$rtsp->listen(0);
+#            $rtsp->listen(0);
+#print STDERR Dumper \%resp_headers;
+#print STDERR Dumper \$rtsp->{"resp-headers"};
+#print STDERR "1: ".$rtsp->get_header("Notice")."\n";
+#print STDERR "2: ".${rtsp->{"resp-headers"}}{"Notice"}."\n";
+#            if (defined($rtsp->get_header("Notice"))) {
+#                print STDERR "Received ANNOUNCE and sending response of 200...\n";
+#                $rtsp->response_ok();
+#                $rtsp->listen($rtsp->{timeout});
+#            } 
 
             # Send request and record value of response headers
             my $headers = request($args);
@@ -121,6 +131,7 @@ sub request {
     
     $rtsp->method($opt_m);
     $rtsp->user_agent("rtsp-request:$VERSION");
+    #$rtsp->user_agent("OpenTV VOD 1");
     
     shift @ARGV;
     
